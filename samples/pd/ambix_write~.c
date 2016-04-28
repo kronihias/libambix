@@ -96,11 +96,6 @@ static int ambixwrite_argparse(void *obj, int *p_argc, t_atom **p_argv,
         case 2: sampleformat=AMBIX_SAMPLEFORMAT_PCM16;   break;
         case 3: sampleformat=AMBIX_SAMPLEFORMAT_PCM24;   break;
         case 4: sampleformat=AMBIX_SAMPLEFORMAT_FLOAT32; break;
-/*
-        case 5: sampleformat=AMBIX_SAMPLEFORMAT_ALAC16; break;
-        case 6: sampleformat=AMBIX_SAMPLEFORMAT_ALAC24; break;
-        case 7: sampleformat=AMBIX_SAMPLEFORMAT_ALAC32; break;
-*/
         default:
           goto usage;
         }
