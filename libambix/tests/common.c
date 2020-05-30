@@ -28,6 +28,17 @@
 #endif
 #include <string.h>
 
+#include <float.h>
+#ifdef DBL_DECIMAL_DIG
+  #define OP_DBL_Digs (DBL_DECIMAL_DIG)
+#else
+  #ifdef DECIMAL_DIG
+    #define OP_DBL_Digs (DECIMAL_DIG)
+  #else
+    #define OP_DBL_Digs (DBL_DIG + 3)
+  #endif
+#endif
+
 static char* snprintdata(char*out, size_t size, ambixtest_presentationformat_t fmt, const void*data, uint64_t index) {
   switch(fmt) {
   case INT16  :
@@ -52,15 +63,16 @@ static char* snprintdata(char*out, size_t size, ambixtest_presentationformat_t f
 
 void matrix_print(const ambix_matrix_t*mtx) {
   printf("matrix[%p] ", mtx);
-  printf(" [%dx%d]@%p\n", mtx->rows, mtx->cols, mtx->data);
+  printf(" [%dx%d]@%p\n[\n", mtx->rows, mtx->cols, mtx->data);
   if(mtx->data) {
     uint32_t c, r;
     for(r=0; r<mtx->rows; r++) {
       for(c=0; c<mtx->cols; c++)
-        printf(" %05f", mtx->data[r][c]);
+        printf(" %.*e", OP_DBL_Digs - 1, mtx->data[r][c]);
       printf("\n");
     }
   }
+  printf("]\n");
 }
 #define MAX_OVER 10
 float32_t matrix_diff(uint32_t line, const ambix_matrix_t*A, const ambix_matrix_t*B, float32_t eps) {
@@ -119,9 +131,11 @@ float32_t data_diff(uint32_t line,
     switch(fmt) {
     case INT16  :
       v=((int16_t*)A)[i]-((int16_t*)B)[i];
+      v/=0xFFFF;
       break;
     case INT32  :
       v=((int32_t*)A)[i]-((int32_t*)B)[i];
+      v/=0xFFFFFFFF;
       break;
     case FLOAT32:
       v=((float32_t*)A)[i]-((float32_t*)B)[i];
@@ -214,13 +228,13 @@ void*data_calloc(ambixtest_presentationformat_t fmt, size_t nmembers) {
 }
 
 void*data_sine(ambixtest_presentationformat_t fmt, uint64_t frames, uint32_t channels, float32_t freq) {
-  float32_t periods=freq/44100.;
+  float64_t periods=freq/44100.;
   void*data=data_calloc(fmt, frames*channels);
   int64_t frame;
   for(frame=0; frame<frames; frame++) {
     int32_t chan;
     float64_t f=(float64_t)frame*periods;
-    float64_t value=0.5*sinf(f);
+    float64_t value=0.5*sin(f);
     for(chan=0; chan<channels; chan++)
       setdata(fmt, data, f*channels+chan, value);
   }
@@ -229,8 +243,8 @@ void*data_sine(ambixtest_presentationformat_t fmt, uint64_t frames, uint32_t cha
 
 void*data_ramp(ambixtest_presentationformat_t fmt, uint64_t frames, uint32_t channels) {
   void*data=data_calloc(fmt, frames*channels);
-  double increment=1./(double)frames;
-  double value=0.;
+  float64_t increment=1./(double)frames;
+  float64_t value=0.;
   int64_t frame;
   for(frame=0; frame<frames; frame++) {
     int32_t chan;

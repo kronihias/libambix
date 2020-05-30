@@ -69,6 +69,7 @@ typedef struct ai_t {
   ambix_matrix_t matrix;
 
   uint32_t blocksize;
+  int format;
 #define DEFAULT_BLOCKSIZE 1024
 #define MAX_FILENAMESIZE 1024
 } ai_t;
@@ -93,10 +94,32 @@ static char*ai_prefix(const char*filename) {
   result=strdup("outfile-");
   return result;
 }
+static char*ai_suffix(const char*suffix, int format) {
+  unsigned int length = strnlen(suffix, 1024)+6;
+  char*tmp=calloc(length, sizeof(char));
+  char*result=NULL;
+  switch (format) {
+  case SF_FORMAT_WAV:
+    snprintf(tmp, length-1, "%s.wav", suffix);
+    break;
+  case SF_FORMAT_CAF:
+    snprintf(tmp, length-1, "%s.caf", suffix);
+    break;
+  default:
+    snprintf(tmp, length-1, "%s", suffix);
+  }
+  result = strdup(tmp);
+  free(tmp);
+  return result;
+}
+
 
 static ai_t*ai_cmdline(const char*name, int argc, char**argv) {
   ai_t*ai=(ai_t*)calloc(1, sizeof(ai_t));
   uint32_t blocksize=0;
+  const char*suffix="";
+  const char*prefix=NULL;
+  ai->format=SF_FORMAT_WAV;
 
   while(argc) {
     if(!strcmp(argv[0], "-h") || !strcmp(argv[0], "--help")) {
@@ -110,7 +133,7 @@ static ai_t*ai_cmdline(const char*name, int argc, char**argv) {
     if(!strcmp(argv[0], "-p") || !strcmp(argv[0], "--prefix")) {
       if(argc>1) {
         //printf("prefix: '%s'\n", argv[1]);
-        ai->prefix=strdup(argv[1]);
+        prefix=argv[1];
         argv+=2;
         argc-=2;
         continue;
@@ -119,12 +142,27 @@ static ai_t*ai_cmdline(const char*name, int argc, char**argv) {
     }
     if(!strcmp(argv[0], "-s") || !strcmp(argv[0], "--suffix")) {
       if(argc>1) {
-        ai->suffix=strdup(argv[1]);
+        suffix = argv[1];
         argv+=2;
         argc-=2;
         continue;
       }
       return ai_close(ai);
+    }
+    if(!strcmp(argv[0], "-f") || !strcmp(argv[0], "--format")) {
+      if(argc<2)
+        return ai_close(ai);
+      if(!strncmp(argv[1], "caf", 3) || !strncmp(argv[1], "CAF", 3))
+        ai->format=SF_FORMAT_CAF;
+      else if(!strncmp(argv[1], "wav", 3) || !strncmp(argv[1], "WAV", 3))
+        ai->format=SF_FORMAT_WAV;
+      else {
+        fprintf(stderr, "unknown format '%s'\n", argv[1]);
+        return ai_close(ai);
+      }
+      argv+=2;
+      argc-=2;
+      continue;
     }
     if(!strcmp(argv[0], "-b") || !strcmp(argv[0], "--blocksize")) {
       if(argc>1) {
@@ -141,14 +179,15 @@ static ai_t*ai_cmdline(const char*name, int argc, char**argv) {
     break;
   }
 
+
   if(!ai->infilename)
       return ai_close(ai);
 
-  if(!ai->prefix)
+  if(prefix)
+    ai->prefix=strdup(prefix);
+  else
     ai->prefix=ai_prefix(ai->infilename);
-
-  if(!ai->suffix)
-    ai->suffix=strdup(DEFAULT_SUFFIX);
+  ai->suffix=ai_suffix(suffix, ai->format);
 
   if(blocksize>0)
     ai->blocksize=blocksize;
@@ -264,7 +303,7 @@ static ai_t*ai_open_output(ai_t*ai) {
   case(AMBIX_SAMPLEFORMAT_FLOAT32): format |= SF_FORMAT_FLOAT ; break;
   }
 
-  info.format = format | SF_FORMAT_WAV;
+  info.format = format | ai->format;
   info.frames = ai->info.frames;
 
   info.samplerate = (int)(ai->info.samplerate);
@@ -438,25 +477,22 @@ static ai_t*ai_copy(ai_t*ai) {
   }
   deinterleavebuf=(float32_t*)malloc(sizeof(float32_t)*size);
   if(NULL==deinterleavebuf) {
-    free(rawdata);
-    free(cookeddata);
-    free(extradata);
-
-    return ai_close(ai);
+    ai=ai_close(ai);
+    goto done;
   }
 
   while(frames>blocksize) {
     blocks++;
-    if(!ai_copy_block(ai, rawdata, cookeddata, extradata, deinterleavebuf, blocksize)) {
-      return ai_close(ai);
+    ai = ai_copy_block(ai, rawdata, cookeddata, extradata, deinterleavebuf, blocksize);
+    if(!ai) {
+      goto done;
     }
     frames-=blocksize;
   }
 
-  if(!ai_copy_block(ai, rawdata, cookeddata, extradata, deinterleavebuf, frames)) {
-    return ai_close(ai);
-  }
+  ai = ai_copy_block(ai, rawdata, cookeddata, extradata, deinterleavebuf, frames);
 
+ done:
   free(rawdata);
   free(cookeddata);
   free(extradata);
@@ -499,42 +535,52 @@ int main(int argc, char**argv) {
   return ambix_deinterleave(ai);
 }
 void print_usage(const char*name) {
-  printf("\n");
-  printf("Usage: %s [options] infile\n", name);
-  printf("Split an ambix file into several mono files\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Usage: %s [options] infile\n", name);
+  fprintf(stderr, "Split an ambix file into several mono files\n");
 
-  printf("\n");
-  printf("Options:\n");
-  printf("  -h, --help                       print this help\n");
-  printf("  -v, --version                    print version info\n");
-  printf("  -p, --prefix                     output prefix\n");
-  printf("\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Options:\n");
+  fprintf(stderr, "  -h, --help                       print this help\n");
+  fprintf(stderr, "  -v, --version                    print version info\n");
+  fprintf(stderr, "  -p, --prefix <PREFIX>            output prefix (default: '<infilename>-')\n");
+  fprintf(stderr, "  -s, --suffix <SUFFIX>            output suffix (default: '')\n");
+  fprintf(stderr, "  -f, --format <FMT>               output format (WAV, CAFF)\n");
+  fprintf(stderr, "\n");
 
-  printf(
-         "\nThis splits an ambix file into several mono files, naming them according to type:"
-         "\nIf infile is 'FieldRecording.caf', this will extract audio data into"
-         "\n'FieldRecording-ambi000.caf', 'FieldRecording-ambi001.caf', ..., 'FieldRecording-extra000.caf', ..."
-         "\n"
+  fprintf(stderr,
+          "\nThis splits an ambix file into several mono files,"
+          "\nnaming them according to prefix, suffix and format:"
+          "\nIf infile is 'FieldRecording.caf', this will extract audio data into"
+          "\n  - 'FieldRecording-ambi000.wav'"
+          "\n  - 'FieldRecording-ambi001.wav'"
+          "\n  - ..."
+          "\n  - 'FieldRecording-extra000.wav'"
+          "\n  - ..."
+          "\n"
          );
 
-  printf("\n");
-#ifdef PACKAGE_BUGREPORT
-  printf("Report bugs to: %s\n\n", PACKAGE_BUGREPORT);
-#endif
+  fprintf(stderr, "\n");
 #ifdef PACKAGE_URL
-  printf("Home page: %s\n", PACKAGE_URL);
+  fprintf(stderr, "Home page: %s\n", PACKAGE_URL);
+#endif
+#ifdef PACKAGE_BUGREPORT
+  fprintf(stderr, "Report bugs at: %s\n", PACKAGE_BUGREPORT);
 #endif
 }
 void print_version(const char*name) {
 #ifdef PACKAGE_VERSION
-  printf("%s %s\n", name, PACKAGE_VERSION);
+  fprintf(stderr, "%s %s\n", name, PACKAGE_VERSION);
 #endif
-  printf("\n");
-  printf("Copyright (C) 2012 Institute of Electronic Music and Acoustics (IEM), University of Music and Dramatic Arts (KUG), Graz, Austria.\n");
-  printf("\n");
-  printf("License LGPLv2.1: GNU Lesser GPL version 2.1 or later <http://gnu.org/licenses/lgpl.html>\n");
-  printf("This is free software: you are free to change and redistribute it.\n");
-  printf("There is NO WARRANTY, to the extent permitted by law.\n");
-  printf("\n");
-  printf("Written by IOhannes m zmoelnig <zmoelnig@iem.at>\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Copyright (C) 2012-2017 Institute of Electronic Music and Acoustics (IEM),\n"
+          "                        University of Music and Dramatic Arts (KUG),\n"
+          "                        Graz, Austria.\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "License LGPLv2.1: GNU Lesser GPL version 2.1 or later\n"
+                  "                  <http://gnu.org/licenses/lgpl.html>\n");
+  fprintf(stderr, "This is free software: you are free to change and redistribute it.\n");
+  fprintf(stderr, "There is NO WARRANTY, to the extent permitted by law.\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Written by IOhannes m zmoelnig <zmoelnig@iem.at>\n");
 }
