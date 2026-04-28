@@ -336,6 +336,14 @@ void*ambix_get_sndfile    (ambix_t*ambix) {
   return NULL;
 }
 
+ambix_container_t ambix_get_container(ambix_t *ambix) {
+  if (!ambix) return AMBIX_CONTAINER_NONE;
+#ifdef HAVE_WAVPACK
+  if (ambix->backend_id == AMBIX_BACKEND_WAVPACK) return AMBIX_CONTAINER_WAVPACK;
+#endif
+  return AMBIX_CONTAINER_CAF;
+}
+
 uint32_t ambix_get_num_markers (ambix_t*ambix) {
   return ambix->num_markers;
 }

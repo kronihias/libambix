@@ -143,6 +143,19 @@ typedef enum {
   AMBIX_EXTENDED = 2
 } ambix_fileformat_t;
 
+/** ambix container/storage formats — describes the on-disk wrapper that
+ *  carries the audio payload, independent of the ambix file format
+ *  (BASIC/EXTENDED) and the sample format (PCM/FLOAT).
+ */
+typedef enum {
+  /** unknown / no container associated (e.g. handle not opened) */
+  AMBIX_CONTAINER_NONE    = 0,
+  /** Apple Core Audio Format (uncompressed), via libsndfile */
+  AMBIX_CONTAINER_CAF     = 1,
+  /** WavPack lossless-compressed container */
+  AMBIX_CONTAINER_WAVPACK = 2
+} ambix_container_t;
+
 /** ambix sample formats */
 typedef enum {
 /** unknown (or illegal) sample formats */
@@ -458,6 +471,21 @@ AMBIX_API
 SNDFILE *ambix_get_sndfile (ambix_t *ambix) ;
 
 #pragma pop_macro("SNDFILE")
+
+/** @brief Get the on-disk container format of an opened ambix file.
+ *
+ * On read, this reflects what the reader auto-detected from the file's magic
+ * bytes ("caff" → CAF, "wvpk" → WavPack). On write, it reflects whether
+ * @ref AMBIX_USE_WAVPACK was OR'ed into the open mode.
+ *
+ * @param ambix The handle to an ambix file
+ *
+ * @return the container format, or @ref AMBIX_CONTAINER_NONE if @p ambix is NULL.
+ *
+ * @ingroup ambix
+ */
+AMBIX_API
+ambix_container_t ambix_get_container(ambix_t *ambix) ;
 
 /** @brief Get the number of stored markers within the ambix file.
  *
@@ -849,11 +877,5 @@ int ambix_is_fullset(uint32_t channels) ;
 #ifdef __cplusplus
 } /* extern "C" */
 #endif /* __cplusplus */
-
-#if HAVE_PUSH_MACRO
-# pragma pop_macro("SNDFILE")
-#elif !defined(SNDFILE_1)
-# undef SNDFILE void
-#endif
 
 #endif /* AMBIX_AMBIX_H */

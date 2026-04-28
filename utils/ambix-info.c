@@ -99,6 +99,18 @@ void printinfo(const char*path) {
   }
   printf(")\n");
 
+  {
+    ambix_container_t container = ambix_get_container(ambix);
+    printf("Container\t: %d (", container);
+    switch(container) {
+    case(AMBIX_CONTAINER_NONE): printf("NONE"); break;
+    case(AMBIX_CONTAINER_CAF): printf("CAF"); break;
+    case(AMBIX_CONTAINER_WAVPACK): printf("WavPack (lossless)"); break;
+    default: printf("**unknown**");
+    }
+    printf(")\n");
+  }
+
   printf("Ambisonics channels\t: %d\n", info.ambichannels);
   printf("Non-Ambisonics channels\t: %d\n", info.extrachannels);
 

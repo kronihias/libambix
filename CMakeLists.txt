@@ -13,6 +13,7 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(LIBAMBIX_BUILD_TESTS "Build libambix tests" OFF)
+option(LIBAMBIX_BUILD_UTILS "Build libambix command-line utilities" OFF)
 option(LIBAMBIX_ENABLE_WAVPACK "Enable the WavPack lossless backend" ON)
 
 # --- libsndfile (required for the CAF backend) -----------------------------
@@ -105,13 +106,19 @@ if(_libambix_have_wavpack)
 endif()
 
 # libsndfile dependency
+# Prefer the full-path *_LINK_LIBRARIES from pkg-config so that consumers
+# linking against the static ambix archive don't need to rediscover -L paths.
 if(SNDFILE_INCLUDE_DIRS)
   target_include_directories(ambix PRIVATE ${SNDFILE_INCLUDE_DIRS})
 endif()
-if(SNDFILE_LIBRARY_DIRS)
-  target_link_directories(ambix PRIVATE ${SNDFILE_LIBRARY_DIRS})
+if(SNDFILE_LINK_LIBRARIES)
+  target_link_libraries(ambix PRIVATE ${SNDFILE_LINK_LIBRARIES})
+else()
+  if(SNDFILE_LIBRARY_DIRS)
+    target_link_directories(ambix PUBLIC ${SNDFILE_LIBRARY_DIRS})
+  endif()
+  target_link_libraries(ambix PRIVATE ${SNDFILE_LIBRARIES})
 endif()
-target_link_libraries(ambix PRIVATE ${SNDFILE_LIBRARIES})
 
 # WavPack dependency
 if(_libambix_have_wavpack)
@@ -121,10 +128,14 @@ if(_libambix_have_wavpack)
     if(WAVPACK_INCLUDE_DIRS)
       target_include_directories(ambix PRIVATE ${WAVPACK_INCLUDE_DIRS})
     endif()
-    if(WAVPACK_LIBRARY_DIRS)
-      target_link_directories(ambix PRIVATE ${WAVPACK_LIBRARY_DIRS})
+    if(WAVPACK_LINK_LIBRARIES)
+      target_link_libraries(ambix PRIVATE ${WAVPACK_LINK_LIBRARIES})
+    else()
+      if(WAVPACK_LIBRARY_DIRS)
+        target_link_directories(ambix PUBLIC ${WAVPACK_LIBRARY_DIRS})
+      endif()
+      target_link_libraries(ambix PRIVATE ${WAVPACK_LIBRARIES})
     endif()
-    target_link_libraries(ambix PRIVATE ${WAVPACK_LIBRARIES})
   endif()
 endif()
 
@@ -134,3 +145,39 @@ if(NOT WIN32)
 endif()
 
 message(STATUS "libambix: sndfile=${_libambix_have_sndfile} wavpack=${_libambix_have_wavpack}")
+
+# --- command-line utilities ------------------------------------------------
+if(LIBAMBIX_BUILD_UTILS)
+  include(CheckSymbolExists)
+  check_symbol_exists(strndup "string.h" _libambix_have_strndup)
+
+  set(_libambix_util_targets
+    ambix-info
+    ambix-dump
+    ambix-matrix
+    ambix-test
+    ambix-interleave
+    ambix-deinterleave
+  )
+
+  foreach(_util IN LISTS _libambix_util_targets)
+    add_executable(${_util} utils/${_util}.c)
+    target_link_libraries(${_util} PRIVATE ambix)
+    # utils include "replacement/strndup.h" relative to the source root
+    target_include_directories(${_util} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(_libambix_have_strndup)
+      target_compile_definitions(${_util} PRIVATE HAVE_STRNDUP=1)
+    endif()
+  endforeach()
+
+  # interleave / deinterleave additionally use libsndfile directly
+  foreach(_util ambix-interleave ambix-deinterleave)
+    if(SNDFILE_INCLUDE_DIRS)
+      target_include_directories(${_util} PRIVATE ${SNDFILE_INCLUDE_DIRS})
+    endif()
+    if(SNDFILE_LIBRARY_DIRS)
+      target_link_directories(${_util} PRIVATE ${SNDFILE_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(${_util} PRIVATE ${SNDFILE_LIBRARIES})
+  endforeach()
+endif()
