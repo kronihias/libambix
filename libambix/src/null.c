@@ -22,46 +22,53 @@
 
 #include "private.h"
 
-ambix_err_t _ambix_open (ambix_t*ambix, const char *path, const ambix_filemode_t mode, const ambix_info_t*ambixinfo) {
+ambix_err_t _ambix_open_sndfile (ambix_t*ambix, const char *path, const ambix_filemode_t mode, const ambix_info_t*ambixinfo) {
   return AMBIX_ERR_INVALID_FILE;
 }
 
-ambix_err_t     _ambix_close    (ambix_t*ambix) {
+ambix_err_t     _ambix_close_sndfile    (ambix_t*ambix) {
   return AMBIX_ERR_INVALID_FILE;
 }
 
-SNDFILE*_ambix_get_sndfile   (ambix_t*ambix) {
+void*_ambix_get_sndfile_sndfile   (ambix_t*ambix) {
   return 0;
 }
 
-int64_t _ambix_readf_int16   (ambix_t*ambix, int16_t*data, int64_t frames) {
+int64_t _ambix_readf_int16_sndfile   (ambix_t*ambix, int16_t*data, int64_t frames) {
   return -1;
 }
-int64_t _ambix_readf_int32   (ambix_t*ambix, int32_t*data, int64_t frames) {
+int64_t _ambix_readf_int32_sndfile   (ambix_t*ambix, int32_t*data, int64_t frames) {
   return -1;
 }
-int64_t _ambix_readf_float32   (ambix_t*ambix, float32_t*data, int64_t frames) {
+int64_t _ambix_readf_float32_sndfile   (ambix_t*ambix, float32_t*data, int64_t frames) {
   return -1;
 }
-int64_t _ambix_readf_float64   (ambix_t*ambix, float64_t*data, int64_t frames) {
+int64_t _ambix_readf_float64_sndfile   (ambix_t*ambix, float64_t*data, int64_t frames) {
   return -1;
 }
 
-int64_t _ambix_writef_int16   (ambix_t*ambix, const int16_t*data, int64_t frames) {
+int64_t _ambix_writef_int16_sndfile   (ambix_t*ambix, const int16_t*data, int64_t frames) {
   return -1;
 }
-int64_t _ambix_writef_int32   (ambix_t*ambix, const int32_t*data, int64_t frames) {
+int64_t _ambix_writef_int32_sndfile   (ambix_t*ambix, const int32_t*data, int64_t frames) {
   return -1;
 }
-int64_t _ambix_writef_float32   (ambix_t*ambix, const float32_t*data, int64_t frames) {
+int64_t _ambix_writef_float32_sndfile   (ambix_t*ambix, const float32_t*data, int64_t frames) {
   return -1;
 }
-int64_t _ambix_writef_float64   (ambix_t*ambix, const float64_t*data, int64_t frames) {
+int64_t _ambix_writef_float64_sndfile   (ambix_t*ambix, const float64_t*data, int64_t frames) {
   return -1;
 }
-ambix_err_t _ambix_write_uuidchunk(ambix_t*ax, const void*data, int64_t datasize) {
-  return  AMBIX_ERR_UNKNOWN;
+ambix_err_t _ambix_write_uuidchunk_sndfile(ambix_t*ax, const void*data, int64_t datasize) {
+  return AMBIX_ERR_UNKNOWN;
 }
-int64_t _ambix_seek (ambix_t* ambix, int64_t frames, int whence) {
+ambix_err_t _ambix_write_chunk_sndfile(ambix_t*ax, uint32_t id, const void*data, int64_t datasize) {
+  return AMBIX_ERR_UNKNOWN;
+}
+void* _ambix_read_chunk_sndfile(ambix_t*ax, uint32_t id, uint32_t chunk_it, int64_t *datasize) {
+  *datasize = 0;
+  return NULL;
+}
+int64_t _ambix_seek_sndfile (ambix_t* ambix, int64_t frames, int whence) {
   return -1;
 }

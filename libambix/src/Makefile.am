@@ -74,6 +74,12 @@ libambix_la_SOURCES += null.c
 endif !HAVE_FRAMEWORK_AUDIOTOOLBOX
 endif !HAVE_SNDFILE
 
+if HAVE_WAVPACK
+libambix_la_SOURCES += wavpack.c
+libambix_la_CFLAGS += @WAVPACK_CFLAGS@
+libambix_la_LIBADD += @WAVPACK_LIBS@
+endif
+
 
 
 

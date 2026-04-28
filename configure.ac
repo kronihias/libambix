@@ -127,6 +127,31 @@ AS_IF([test "x$with_CoreAudio" != xno],
      )
 AM_CONDITIONAL([HAVE_FRAMEWORK_AUDIOTOOLBOX], [test "x$have_audiotoolbox" = "xyes"])
 
+## checks for WavPack (optional lossless compression backend)
+AC_ARG_WITH([wavpack],
+            [AS_HELP_STRING([--with-wavpack],
+              [enable the WavPack lossless backend for ambix files (default: auto)])],
+            [],
+            [with_wavpack=auto])
+have_wavpack="no"
+AS_IF([test "x$with_wavpack" != xno], [
+tmp_wavpack_CFLAGS="$CFLAGS"
+tmp_wavpack_LIBS="$LIBS"
+
+PKG_CHECK_MODULES([WAVPACK], [wavpack >= 5.0.0], [have_wavpack="yes"], [have_wavpack="no"])
+
+if test "x$have_wavpack" = "xyes"; then
+ AC_DEFINE([HAVE_WAVPACK], [1], [Define to 1 if the WavPack backend is available])
+fi
+
+CFLAGS="$tmp_wavpack_CFLAGS"
+LIBS="$tmp_wavpack_LIBS"
+])
+if test "x$with_wavpack" = "xyes" -a "x$have_wavpack" = "xno"; then
+  AC_MSG_ERROR([--with-wavpack was requested but WavPack >= 5.0.0 was not found])
+fi
+AM_CONDITIONAL(HAVE_WAVPACK, [test "x$have_wavpack" = "xyes"])
+
 ## checks for jack
 AC_ARG_WITH([jack],
             [AS_HELP_STRING([--with-jack],

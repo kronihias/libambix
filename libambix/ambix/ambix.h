@@ -124,7 +124,12 @@ typedef enum {
   /** open file for writing */
   AMBIX_WRITE = (1 << 5),
   /** open file for reading&writing */
-  AMBIX_RDRW = (AMBIX_READ|AMBIX_WRITE)
+  AMBIX_RDRW = (AMBIX_READ|AMBIX_WRITE),
+
+  /** OR with AMBIX_WRITE to produce a WavPack-compressed ambix file
+   *  (lossless). Ignored on read; the reader auto-detects WavPack vs CAF
+   *  by the file's first 4 bytes ("wvpk" vs "caff"). */
+  AMBIX_USE_WAVPACK = (1 << 6)
 
 } ambix_filemode_t;
 

@@ -67,6 +67,11 @@ basic_float64_SOURCES = basic_float64.c common_basic.c common.c
 basic_pcm32_SOURCES = basic_pcm32.c common_basic.c common.c
 basic_pcm16_SOURCES = basic_pcm16.c common_basic.c common.c
 
+if HAVE_WAVPACK
+TESTS              += wavpack_basic
+wavpack_basic_SOURCES = wavpack_basic.c common.c
+endif
+
 TESTS          += extended_float32_0 extended_float64_0 extended_pcm32_0 extended_pcm16_0
 extended_float32_0_SOURCES = extended_float32_0.c common_extended.c common.c
 extended_float64_0_SOURCES = extended_float64_0.c common_extended.c common.c

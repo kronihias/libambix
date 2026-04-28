@@ -1,46 +1,107 @@
-# backup copies
+# ============================================================================
+#  libambix .gitignore
+#
+#  NOTE: the previous version backslash-escaped every dot (e.g. `*\.la`),
+#  which does not match anything in git's pattern syntax. Patterns below
+#  use plain globs.
+# ============================================================================
+
+# -- backup / editor / OS noise ---------------------------------------------
 *~
-# build products
-*\.la
-*\.lo
-*\.o
-*\.so
-*\.dll
-*\.pd_*
-\.deps/
-\.libs/
-*\.gcno
-# autotools byproducts
+*.swp
+*.bak
+.DS_Store
+
+# -- compile artefacts -------------------------------------------------------
+*.la
+*.lo
+*.o
+*.a
+*.so
+*.so.[0-9]*
+*.dylib
+*.dll
+*.exe
+*.pd_*
+*.gcno
+*.gcda
+.deps/
+.libs/
+
+# -- autotools byproducts ----------------------------------------------------
 Makefile
-Makefile\.in
-aclocal\.m4
-autom4te\.cache/
+Makefile.in
+aclocal.m4
+autom4te.cache/
 configure
-config\.guess
-config\.log
-config\.status
-config\.sub
-missing
-install-sh
+config.guess
+config.log
+config.status
+config.sub
+config.h
+config.h.in
 stamp-h1
-libtool
+ar-lib
+compile
 depcomp
-ltmain\.sh
-config\.h
-config\.h\.in
-m4/libtool\.m4
-m4/ltoptions\.m4
-m4/ltsugar\.m4
-m4/ltversion\.m4
-m4/lt~obsolete\.m4
-## w32 build projects
-build/w32-vs*/*
+install-sh
+missing
+test-driver
+libtool
+ltmain.sh
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
+
+# -- pkgconfig generated from *.pc.in ----------------------------------------
+libambix/libambix.pc
+*.pc
+
+# -- generated Doxygen output -----------------------------------------------
+doc/apiref/
+
+# -- CMake build trees -------------------------------------------------------
+build-cmake/
+_build*/
+build/CMakeCache.txt
+build/CMakeFiles/
+
+# -- Visual Studio user settings (keep checked-in project files) -------------
+build/w32-vs*/Debug/
+build/w32-vs*/Release/
+build/w32-vs*/*.user
+build/w32-vs*/*.suo
 *.vcproj.*.*.user
+
+# -- libambix tests/ : only sources are tracked ------------------------------
+# Treat the whole tests/ dir as build output, then carve out source files.
+libambix/tests/*
+!libambix/tests/*.c
+!libambix/tests/*.h
+!libambix/tests/*.am
+!libambix/tests/data
+libambix/tests/data/*
+!libambix/tests/data/Makefile.am
+
+# -- runtime test logs / generated test files -------------------------------
+*.trs
+*.log
+*.caf
+
+# -- utils/ CLI tools : track sources, ignore built binaries ----------------
+utils/ambix-*
+!utils/ambix-*.c
+
+# -- samples/pd : ambix-meta.pd is generated from ambix-meta.pd.in ----------
+samples/pd/ambix-meta.pd
+
+# -- explicit "do track these" overrides for IDE/build files ----------------
 !*.dsw
 !*.dsp
 !*.sln
 !*.vcproj
 !*.vsprops
 !Makefile.am
-# common build directory
-_build*/
+!CMakeLists.txt

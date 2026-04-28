@@ -29,9 +29,111 @@
 #ifdef HAVE_STRING_H
 # include <string.h>
 #endif /* HAVE_STRING_H */
+#include <stdio.h>
 
 /* forward declarations */
 ambix_err_t     _ambix_write_header     (ambix_t*ambix);
+
+/*
+ * Backend dispatch trampolines.
+ * Each public-facing _ambix_<op>(ambix, ...) selects the backend recorded in
+ * ambix->backend_id and forwards to the corresponding _<op>_sndfile or
+ * _<op>_wavpack implementation. The choice is made once in _ambix_open()
+ * (write: per AMBIX_USE_WAVPACK flag; read: by sniffing the file's first 4
+ * bytes for the WavPack magic "wvpk").
+ */
+
+static int peek_is_wavpack(const char *path) {
+  unsigned char magic[4] = {0};
+  FILE *fp = fopen(path, "rb");
+  if (!fp) return 0;
+  size_t got = fread(magic, 1, 4, fp);
+  fclose(fp);
+  if (got < 4) return 0;
+  return (magic[0]=='w' && magic[1]=='v' && magic[2]=='p' && magic[3]=='k');
+}
+
+ambix_err_t _ambix_open(ambix_t*ambix, const char *path, const ambix_filemode_t mode, const ambix_info_t*ambixinfo) {
+  if (mode & AMBIX_WRITE) {
+#ifdef HAVE_WAVPACK
+    if (mode & AMBIX_USE_WAVPACK) {
+      ambix->backend_id = AMBIX_BACKEND_WAVPACK;
+      return _ambix_open_wavpack(ambix, path, mode, ambixinfo);
+    }
+#endif
+    ambix->backend_id = AMBIX_BACKEND_SNDFILE;
+    return _ambix_open_sndfile(ambix, path, mode, ambixinfo);
+  }
+  /* READ: sniff magic bytes to choose backend */
+#ifdef HAVE_WAVPACK
+  if (peek_is_wavpack(path)) {
+    ambix->backend_id = AMBIX_BACKEND_WAVPACK;
+    return _ambix_open_wavpack(ambix, path, mode, ambixinfo);
+  }
+#endif
+  ambix->backend_id = AMBIX_BACKEND_SNDFILE;
+  return _ambix_open_sndfile(ambix, path, mode, ambixinfo);
+}
+
+#ifdef HAVE_WAVPACK
+# define BACKEND_DISPATCH(call_sndfile, call_wavpack) \
+    do { if (ambix->backend_id == AMBIX_BACKEND_WAVPACK) return call_wavpack; \
+         return call_sndfile; } while (0)
+#else
+# define BACKEND_DISPATCH(call_sndfile, call_wavpack) \
+    do { return call_sndfile; } while (0)
+#endif
+
+ambix_err_t _ambix_close(ambix_t*ambix) {
+  BACKEND_DISPATCH(_ambix_close_sndfile(ambix), _ambix_close_wavpack(ambix));
+}
+int64_t _ambix_seek(ambix_t*ambix, int64_t frames, int whence) {
+  BACKEND_DISPATCH(_ambix_seek_sndfile(ambix, frames, whence), _ambix_seek_wavpack(ambix, frames, whence));
+}
+void* _ambix_get_sndfile(ambix_t*ambix) {
+  /* WavPack-backed handles do not own a SNDFILE*; return NULL. */
+#ifdef HAVE_WAVPACK
+  if (ambix->backend_id == AMBIX_BACKEND_WAVPACK) return NULL;
+#endif
+  return _ambix_get_sndfile_sndfile(ambix);
+}
+int64_t _ambix_readf_int16(ambix_t*ambix, int16_t*data, int64_t frames) {
+  BACKEND_DISPATCH(_ambix_readf_int16_sndfile(ambix, data, frames), _ambix_readf_int16_wavpack(ambix, data, frames));
+}
+int64_t _ambix_readf_int32(ambix_t*ambix, int32_t*data, int64_t frames) {
+  BACKEND_DISPATCH(_ambix_readf_int32_sndfile(ambix, data, frames), _ambix_readf_int32_wavpack(ambix, data, frames));
+}
+int64_t _ambix_readf_float32(ambix_t*ambix, float32_t*data, int64_t frames) {
+  BACKEND_DISPATCH(_ambix_readf_float32_sndfile(ambix, data, frames), _ambix_readf_float32_wavpack(ambix, data, frames));
+}
+int64_t _ambix_readf_float64(ambix_t*ambix, float64_t*data, int64_t frames) {
+  BACKEND_DISPATCH(_ambix_readf_float64_sndfile(ambix, data, frames), _ambix_readf_float64_wavpack(ambix, data, frames));
+}
+int64_t _ambix_writef_int16(ambix_t*ambix, const int16_t*data, int64_t frames) {
+  BACKEND_DISPATCH(_ambix_writef_int16_sndfile(ambix, data, frames), _ambix_writef_int16_wavpack(ambix, data, frames));
+}
+int64_t _ambix_writef_int32(ambix_t*ambix, const int32_t*data, int64_t frames) {
+  BACKEND_DISPATCH(_ambix_writef_int32_sndfile(ambix, data, frames), _ambix_writef_int32_wavpack(ambix, data, frames));
+}
+int64_t _ambix_writef_float32(ambix_t*ambix, const float32_t*data, int64_t frames) {
+  BACKEND_DISPATCH(_ambix_writef_float32_sndfile(ambix, data, frames), _ambix_writef_float32_wavpack(ambix, data, frames));
+}
+int64_t _ambix_writef_float64(ambix_t*ambix, const float64_t*data, int64_t frames) {
+  BACKEND_DISPATCH(_ambix_writef_float64_sndfile(ambix, data, frames), _ambix_writef_float64_wavpack(ambix, data, frames));
+}
+ambix_err_t _ambix_write_uuidchunk(ambix_t*ambix, const void*data, int64_t datasize) {
+  BACKEND_DISPATCH(_ambix_write_uuidchunk_sndfile(ambix, data, datasize), _ambix_write_uuidchunk_wavpack(ambix, data, datasize));
+}
+ambix_err_t _ambix_write_chunk(ambix_t*ambix, uint32_t id, const void*data, int64_t datasize) {
+  BACKEND_DISPATCH(_ambix_write_chunk_sndfile(ambix, id, data, datasize), _ambix_write_chunk_wavpack(ambix, id, data, datasize));
+}
+void* _ambix_read_chunk(ambix_t*ambix, uint32_t id, uint32_t chunk_it, int64_t *datasize) {
+#ifdef HAVE_WAVPACK
+  if (ambix->backend_id == AMBIX_BACKEND_WAVPACK) return _ambix_read_chunk_wavpack(ambix, id, chunk_it, datasize);
+#endif
+  return _ambix_read_chunk_sndfile(ambix, id, chunk_it, datasize);
+}
+#undef BACKEND_DISPATCH
 
 
 static ambix_err_t _check_write_ambixinfo(ambix_info_t*info) {
