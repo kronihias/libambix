@@ -43,7 +43,10 @@ typedef float float32_t;
 /** 64bit floating point number */
 typedef double float64_t;
 
+#include <stdint.h>
+
 #ifdef _MSC_VER
+#ifndef _STDINT_H_
 /** 16bit signed integer */
 typedef signed short int16_t;
 /** 16bit unsigned integer */
@@ -56,8 +59,7 @@ typedef unsigned int uint32_t;
 typedef signed long int64_t;
 /** 64bit unsigned integer */
 typedef unsigned long uint64_t;
-#else
-# include <stdint.h>
+#endif
 #endif
 
 /** @cond skip */
