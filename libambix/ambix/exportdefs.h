@@ -70,8 +70,13 @@
 /** mark symbols to be useable outside the library */
 # define AMBIX_API AMBIX_EXPORT
 #else
+# ifdef AMBIX_STATIC
+/** when building/linking statically, no special decorations needed */
+#  define AMBIX_API
+# else
 /** mark symbols to be useable outside the library */
-# define AMBIX_API AMBIX_IMPORT
+#  define AMBIX_API AMBIX_IMPORT
+# endif
 #endif
 
 #endif /* AMBIX_EXPORTDEFS_H */
