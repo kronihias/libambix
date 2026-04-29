@@ -46,7 +46,7 @@ typedef double float64_t;
 #include <stdint.h>
 
 #ifdef _MSC_VER
-#ifndef _STDINT_H_
+#ifndef int64_t
 /** 16bit signed integer */
 typedef signed short int16_t;
 /** 16bit unsigned integer */
