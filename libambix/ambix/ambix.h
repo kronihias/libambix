@@ -45,23 +45,6 @@ typedef double float64_t;
 
 #include <stdint.h>
 
-#ifdef _MSC_VER
-#ifndef int64_t
-/** 16bit signed integer */
-typedef signed short int16_t;
-/** 16bit unsigned integer */
-typedef unsigned short uint16_t;
-/** 32bit signed integer */
-typedef signed int int32_t;
-/** 32bit unsigned integer */
-typedef unsigned int uint32_t;
-/** 64bit signed integer */
-typedef signed long int64_t;
-/** 64bit unsigned integer */
-typedef unsigned long uint64_t;
-#endif
-#endif
-
 /** @cond skip */
   /* ugly hack to provide to allow the use type 'SNDFILE*'
    * regardless of whether <sndfile.h> is included or not
