@@ -245,7 +245,10 @@ _ambix_open_wavpack(ambix_t *ambix, const char *path, const ambix_filemode_t mod
   /* READ path */
   p->writing = 0;
   char err_buf[80] = {0};
-  p->wpc = WavpackOpenFileInput(path, err_buf, OPEN_WRAPPER | OPEN_NORMALIZE, 0);
+  /* OPEN_ALT_TYPES is required so WavPack returns ID_ALT_HEADER metadata
+   * (which is how non-WAV wrappers like CAF are stored). Without it the
+   * wrapper bytes are silently dropped and we never see the UUID chunk. */
+  p->wpc = WavpackOpenFileInput(path, err_buf, OPEN_WRAPPER | OPEN_NORMALIZE | OPEN_ALT_TYPES, 0);
   if (!p->wpc) return AMBIX_ERR_INVALID_FILE;
 
   /* Pull format info from WavPack (authoritative for samples), wrapper for chunks. */
