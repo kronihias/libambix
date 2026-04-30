@@ -49,7 +49,7 @@
 
 /** identifies which backend implementation is in use for a given handle */
 enum ambix_backend_id_e {
-  AMBIX_BACKEND_SNDFILE = 0,
+  AMBIX_BACKEND_CAF     = 0,
   AMBIX_BACKEND_WAVPACK = 1
 };
 
@@ -144,15 +144,6 @@ ambix_err_t	_ambix_close	(ambix_t*ambix);
  * @return the offset in (multichannel) frames from the start of the audio data or -1 if an error occurred
  */
 int64_t _ambix_seek (ambix_t* ambix, int64_t frames, int whence);
-
-/** @brief Do get an libsndfile handle
- *
- * this is implemented by the various backends (currently only libsndfile)
- *
- * @param ambix a pointer to a valid ambix structure
- * @return an SNDFILE handle or NULL if not possible
- */
-void*_ambix_get_sndfile	(ambix_t*ambix);
 
 /** @brief read 32bit float data from file
  * @param ambix a pointer to a valid ambix structure
@@ -479,22 +470,21 @@ ambix_err_t _ambix_mergeAdaptor_int32(const int32_t*source1, uint32_t source1cha
 ambix_err_t _ambix_mergeAdaptor_int16(const int16_t*source1, uint32_t source1channels, const int16_t*source2, uint32_t source2channels, int16_t*destination, int64_t frames);
 
 
-/** @defgroup backend_sndfile libsndfile backend (CAF I/O) */
-ambix_err_t _ambix_open_sndfile          (ambix_t*ambix, const char *path, const ambix_filemode_t mode, const ambix_info_t*ambixinfo);
-ambix_err_t _ambix_close_sndfile         (ambix_t*ambix);
-int64_t     _ambix_seek_sndfile          (ambix_t*ambix, int64_t frames, int whence);
-void*       _ambix_get_sndfile_sndfile   (ambix_t*ambix);
-int64_t     _ambix_readf_int16_sndfile   (ambix_t*ambix, int16_t  *data, int64_t frames);
-int64_t     _ambix_readf_int32_sndfile   (ambix_t*ambix, int32_t  *data, int64_t frames);
-int64_t     _ambix_readf_float32_sndfile (ambix_t*ambix, float32_t*data, int64_t frames);
-int64_t     _ambix_readf_float64_sndfile (ambix_t*ambix, float64_t*data, int64_t frames);
-int64_t     _ambix_writef_int16_sndfile  (ambix_t*ambix, const int16_t  *data, int64_t frames);
-int64_t     _ambix_writef_int32_sndfile  (ambix_t*ambix, const int32_t  *data, int64_t frames);
-int64_t     _ambix_writef_float32_sndfile(ambix_t*ambix, const float32_t*data, int64_t frames);
-int64_t     _ambix_writef_float64_sndfile(ambix_t*ambix, const float64_t*data, int64_t frames);
-ambix_err_t _ambix_write_uuidchunk_sndfile(ambix_t*ax, const void*data, int64_t datasize);
-ambix_err_t _ambix_write_chunk_sndfile   (ambix_t*ax, uint32_t id, const void*data, int64_t datasize);
-void*       _ambix_read_chunk_sndfile    (ambix_t*ax, uint32_t id, uint32_t chunk_it, int64_t *datasize);
+/** @defgroup backend_caf native CAF backend (replaces libsndfile) */
+ambix_err_t _ambix_open_caf          (ambix_t*ambix, const char *path, const ambix_filemode_t mode, const ambix_info_t*ambixinfo);
+ambix_err_t _ambix_close_caf         (ambix_t*ambix);
+int64_t     _ambix_seek_caf          (ambix_t*ambix, int64_t frames, int whence);
+int64_t     _ambix_readf_int16_caf   (ambix_t*ambix, int16_t  *data, int64_t frames);
+int64_t     _ambix_readf_int32_caf   (ambix_t*ambix, int32_t  *data, int64_t frames);
+int64_t     _ambix_readf_float32_caf (ambix_t*ambix, float32_t*data, int64_t frames);
+int64_t     _ambix_readf_float64_caf (ambix_t*ambix, float64_t*data, int64_t frames);
+int64_t     _ambix_writef_int16_caf  (ambix_t*ambix, const int16_t  *data, int64_t frames);
+int64_t     _ambix_writef_int32_caf  (ambix_t*ambix, const int32_t  *data, int64_t frames);
+int64_t     _ambix_writef_float32_caf(ambix_t*ambix, const float32_t*data, int64_t frames);
+int64_t     _ambix_writef_float64_caf(ambix_t*ambix, const float64_t*data, int64_t frames);
+ambix_err_t _ambix_write_uuidchunk_caf(ambix_t*ax, const void*data, int64_t datasize);
+ambix_err_t _ambix_write_chunk_caf   (ambix_t*ax, uint32_t id, const void*data, int64_t datasize);
+void*       _ambix_read_chunk_caf    (ambix_t*ax, uint32_t id, uint32_t chunk_it, int64_t *datasize);
 
 #ifdef HAVE_WAVPACK
 /** @defgroup backend_wavpack WavPack backend (lossless compression) */

@@ -29,6 +29,7 @@
 */
 
 #include "private.h"
+#include "caf_io.h"
 
 #ifdef HAVE_WAVPACK
 
@@ -44,42 +45,6 @@
 #else
 # include <wavpack.h>
 #endif
-
-/* ---------- CAF wrapper synthesis ---------- */
-
-static void wpk_be_u16(uint8_t *p, uint16_t v) { p[0]=(v>>8)&0xff; p[1]=v&0xff; }
-static void wpk_be_u32(uint8_t *p, uint32_t v) { p[0]=(v>>24)&0xff; p[1]=(v>>16)&0xff; p[2]=(v>>8)&0xff; p[3]=v&0xff; }
-static void wpk_be_u64(uint8_t *p, uint64_t v) {
-  p[0]=(v>>56)&0xff; p[1]=(v>>48)&0xff; p[2]=(v>>40)&0xff; p[3]=(v>>32)&0xff;
-  p[4]=(v>>24)&0xff; p[5]=(v>>16)&0xff; p[6]=(v>>8)&0xff;  p[7]=v&0xff;
-}
-static uint16_t wpk_rd_u16(const uint8_t *p) { return ((uint16_t)p[0]<<8) | p[1]; }
-static uint32_t wpk_rd_u32(const uint8_t *p) {
-  return ((uint32_t)p[0]<<24) | ((uint32_t)p[1]<<16) | ((uint32_t)p[2]<<8) | p[3];
-}
-static uint64_t wpk_rd_u64(const uint8_t *p) {
-  return ((uint64_t)p[0]<<56) | ((uint64_t)p[1]<<48) | ((uint64_t)p[2]<<40) | ((uint64_t)p[3]<<32)
-       | ((uint64_t)p[4]<<24) | ((uint64_t)p[5]<<16) | ((uint64_t)p[6]<<8)  | p[7];
-}
-static void wpk_be_f64(uint8_t *p, double d) {
-  uint64_t bits;
-  memcpy(&bits, &d, 8);
-  wpk_be_u64(p, bits);
-}
-static double wpk_rd_f64(const uint8_t *p) {
-  uint64_t bits = wpk_rd_u64(p);
-  double d;
-  memcpy(&d, &bits, 8);
-  return d;
-}
-
-/* ---------- buffered chunk list (write side) ---------- */
-
-typedef struct wpk_chunk_s {
-  uint32_t id;        /* 4cc, host byte order */
-  uint8_t *data;
-  int64_t  size;
-} wpk_chunk_t;
 
 /* ---------- private state ---------- */
 
@@ -98,7 +63,7 @@ typedef struct wpk_private_s {
   /* write side: buffered chunks */
   uint8_t        *pending_uuid;
   int64_t         pending_uuid_size;
-  wpk_chunk_t    *chunks;
+  caf_chunk_t    *chunks;
   uint32_t        num_chunks;
   /* int32 conversion scratch */
   int32_t        *xfer_buf;
@@ -150,77 +115,6 @@ wpk_xfer_resize(wpk_private_t *p, size_t frames) {
   return 1;
 }
 
-/* ---------- CAF wrapper builder (write) ---------- */
-
-/*
- * Build a CAF byte stream for the wrapper. Layout:
- *   caff header (8)
- *   'desc' chunk (12 + 32) -- mandatory
- *   'uuid' chunk (12 + uuid_size) -- if uuid_data != NULL
- *   for each buffered chunk: (12 + chunk size)
- *   'data' chunk header (12) + mEditCount(4) -- audio bytes are NOT in wrapper
- *
- * Returns malloc()d buffer on success, sets *out_size; caller frees.
- */
-static uint8_t *
-wpk_build_caf_wrapper(const wpk_private_t *p, uint32_t *out_size) {
-  /* Compute total size. */
-  size_t total = 8 /* file header */;
-  total += 12 + 32; /* desc */
-  if (p->pending_uuid && p->pending_uuid_size > 0)
-    total += 12 + (size_t)p->pending_uuid_size;
-  for (uint32_t i = 0; i < p->num_chunks; ++i)
-    total += 12 + (size_t)p->chunks[i].size;
-  total += 12 + 4; /* data chunk header + mEditCount */
-
-  uint8_t *buf = (uint8_t*)malloc(total);
-  if (!buf) { *out_size = 0; return NULL; }
-  uint8_t *q = buf;
-
-  /* CAF file header: "caff" + version=1 + flags=0 */
-  memcpy(q, "caff", 4); q += 4;
-  wpk_be_u16(q, 1); q += 2;
-  wpk_be_u16(q, 0); q += 2;
-
-  /* desc chunk */
-  memcpy(q, "desc", 4); q += 4;
-  wpk_be_u64(q, 32); q += 8;
-  wpk_be_f64(q, (double)p->sample_rate); q += 8;
-  memcpy(q, "lpcm", 4); q += 4;
-  /* mFormatFlags: bit 0 = kCAFLinearPCMFormatFlagIsFloat, bit 1 = kCAFLinearPCMFormatFlagIsLittleEndian
-     For ambix CAF we use big-endian (bit 1 = 0). */
-  wpk_be_u32(q, p->is_float ? 0x01 : 0x00); q += 4;
-  wpk_be_u32(q, (uint32_t)(p->bytes_per_sample * p->num_channels)); q += 4; /* mBytesPerPacket */
-  wpk_be_u32(q, 1); q += 4; /* mFramesPerPacket */
-  wpk_be_u32(q, p->num_channels); q += 4;
-  wpk_be_u32(q, (uint32_t)p->bits_per_sample); q += 4;
-
-  /* uuid chunk (if present) */
-  if (p->pending_uuid && p->pending_uuid_size > 0) {
-    memcpy(q, "uuid", 4); q += 4;
-    wpk_be_u64(q, (uint64_t)p->pending_uuid_size); q += 8;
-    memcpy(q, p->pending_uuid, (size_t)p->pending_uuid_size); q += p->pending_uuid_size;
-  }
-
-  /* buffered chunks */
-  for (uint32_t i = 0; i < p->num_chunks; ++i) {
-    memcpy(q, &p->chunks[i].id, 4); q += 4; /* id is already in CAF byte order */
-    wpk_be_u64(q, (uint64_t)p->chunks[i].size); q += 8;
-    if (p->chunks[i].size > 0)
-      memcpy(q, p->chunks[i].data, (size_t)p->chunks[i].size);
-    q += p->chunks[i].size;
-  }
-
-  /* data chunk: header + mEditCount=0; audio sample bytes are not in the wrapper */
-  memcpy(q, "data", 4); q += 4;
-  /* size = -1 (sentinel meaning "to end of file" per CAF spec; common in streaming) */
-  wpk_be_u64(q, (uint64_t)(int64_t)-1); q += 8;
-  wpk_be_u32(q, 0); q += 4; /* mEditCount */
-
-  *out_size = (uint32_t)(q - buf);
-  return buf;
-}
-
 /* ---------- WavPack write callback ---------- */
 
 static int
@@ -246,8 +140,20 @@ wpk_lazy_init_writer(ambix_t *ax) {
   WavpackSetFileInformation(p->wpc, "caf", WP_FORMAT_CAF);
 
   /* Build and attach the CAF wrapper. */
+  caf_wrapper_spec_t spec;
+  memset(&spec, 0, sizeof(spec));
+  spec.sample_rate        = p->sample_rate;
+  spec.num_channels       = p->num_channels;
+  spec.bits_per_sample    = p->bits_per_sample;
+  spec.bytes_per_sample   = p->bytes_per_sample;
+  spec.is_float           = p->is_float;
+  spec.data_size_sentinel = 1; /* WavPack: -1 (audio is in WavPack stream) */
+  spec.uuid_data          = p->pending_uuid;
+  spec.uuid_size          = p->pending_uuid_size;
+  spec.chunks             = p->chunks;
+  spec.num_chunks         = p->num_chunks;
   uint32_t wrap_size = 0;
-  uint8_t *wrap = wpk_build_caf_wrapper(p, &wrap_size);
+  uint8_t *wrap = cafio_build_wrapper(&spec, &wrap_size, NULL);
   if (!wrap) {
     WavpackCloseFile(p->wpc); p->wpc = NULL;
     return AMBIX_ERR_UNKNOWN;
@@ -283,52 +189,27 @@ wpk_lazy_init_writer(ambix_t *ax) {
   return AMBIX_ERR_SUCCESS;
 }
 
-/* ---------- CAF wrapper parser (read) ---------- */
-
-/*
- * Walk the wrapper bytes, populating audio-format fields and locating the
- * uuid chunk (if any). Buffered chunks (markers/regions) are not parsed
- * here — _ambix_read_chunk_wavpack walks the wrapper on demand.
+/* ---------- CAF wrapper parser (read) ----------
+ *
+ * Thin shim around cafio_parse_wrapper that copies fields into wpk_private_t.
  */
 static ambix_err_t
 wpk_parse_caf_wrapper(ambix_t *ax) {
   wpk_private_t *p = PWP(ax);
-  if (!p->wrap || p->wrap_size < 8 + 12 + 32) return AMBIX_ERR_INVALID_FILE;
-  if (memcmp(p->wrap, "caff", 4) != 0) return AMBIX_ERR_INVALID_FILE;
-  /* version = wpk_rd_u16(p->wrap+4); flags = wpk_rd_u16(p->wrap+6); — unused */
-  uint8_t *q   = p->wrap + 8;
-  uint8_t *end = p->wrap + p->wrap_size;
-  while (q + 12 <= end) {
-    char id[5]; memcpy(id, q, 4); id[4]=0;
-    uint64_t sz = wpk_rd_u64(q + 4);
-    q += 12;
-    if (memcmp(id, "data", 4) == 0) {
-      /* data chunk: only mEditCount(4) sits in the wrapper; audio is in WavPack stream */
-      break;
-    }
-    /* Bounds check (allow truncated 'desc'/'uuid' to be tolerated above the data chunk) */
-    if (sz > (uint64_t)(end - q)) {
-      /* truncated wrapper — consume rest as best effort */
-      sz = (uint64_t)(end - q);
-    }
-    if (memcmp(id, "desc", 4) == 0 && sz >= 32) {
-      double      sr            = wpk_rd_f64(q + 0);
-      /* mFormatID at q+8 ('lpcm') — assumed */
-      uint32_t    fmt_flags     = wpk_rd_u32(q + 12);
-      /* mBytesPerPacket at q+16, mFramesPerPacket at q+20 — derivable */
-      uint32_t    nch           = wpk_rd_u32(q + 24);
-      uint32_t    bits_per_ch   = wpk_rd_u32(q + 28);
-      p->sample_rate     = (uint32_t)sr;
-      p->num_channels    = nch;
-      p->bits_per_sample = (int)bits_per_ch;
-      p->bytes_per_sample = (bits_per_ch + 7) / 8;
-      p->is_float        = (fmt_flags & 0x01) ? 1 : 0;
-    } else if (memcmp(id, "uuid", 4) == 0) {
-      p->uuid_data = q;
-      p->uuid_size = (int64_t)sz;
-    }
-    q += sz;
-  }
+  caf_parsed_t parsed;
+  ambix_err_t err = cafio_parse_wrapper(p->wrap, p->wrap_size, &parsed);
+  if (err != AMBIX_ERR_SUCCESS) return err;
+  /* Wrapper format fields are advisory — WavPack header is authoritative for
+   * the sample stream. We still cache them in case downstream code reads them. */
+  if (parsed.num_channels)    p->num_channels     = parsed.num_channels;
+  if (parsed.bits_per_sample) p->bits_per_sample  = parsed.bits_per_sample;
+  if (parsed.bytes_per_sample)p->bytes_per_sample = parsed.bytes_per_sample;
+  if (parsed.sample_rate)     p->sample_rate      = parsed.sample_rate;
+  p->is_float   = parsed.is_float;
+  /* uuid_data points into p->wrap, which is owned by WavPack. Cast away const
+   * for storage; we never write through the pointer. */
+  p->uuid_data = (uint8_t*)parsed.uuid_data;
+  p->uuid_size = parsed.uuid_size;
   return AMBIX_ERR_SUCCESS;
 }
 
@@ -466,10 +347,10 @@ ambix_err_t
 _ambix_write_chunk_wavpack(ambix_t *ax, uint32_t id, const void *data, int64_t datasize) {
   wpk_private_t *p = PWP(ax);
   if (!p || !p->writing || p->initialized) return AMBIX_ERR_UNKNOWN;
-  wpk_chunk_t *nc = (wpk_chunk_t*)realloc(p->chunks, (p->num_chunks + 1) * sizeof(wpk_chunk_t));
+  caf_chunk_t *nc = (caf_chunk_t*)realloc(p->chunks, (p->num_chunks + 1) * sizeof(caf_chunk_t));
   if (!nc) return AMBIX_ERR_UNKNOWN;
   p->chunks = nc;
-  wpk_chunk_t *c = &p->chunks[p->num_chunks];
+  caf_chunk_t *c = &p->chunks[p->num_chunks];
   c->id   = id;
   c->size = datasize;
   c->data = NULL;
@@ -488,32 +369,8 @@ void *
 _ambix_read_chunk_wavpack(ambix_t *ax, uint32_t id, uint32_t chunk_it, int64_t *datasize) {
   wpk_private_t *p = PWP(ax);
   *datasize = 0;
-  if (!p || p->writing || !p->wrap || p->wrap_size < 8 + 12) return NULL;
-
-  uint8_t *q   = p->wrap + 8;
-  uint8_t *end = p->wrap + p->wrap_size;
-  uint32_t want = id; /* big-endian on disk; id arg matches the bytes we wrote */
-  uint32_t hits = 0;
-  while (q + 12 <= end) {
-    uint32_t this_id;
-    memcpy(&this_id, q, 4);
-    uint64_t sz = wpk_rd_u64(q + 4);
-    q += 12;
-    if (memcmp(q - 12, "data", 4) == 0) break;
-    if (sz > (uint64_t)(end - q)) sz = (uint64_t)(end - q);
-    if (this_id == want) {
-      if (hits == chunk_it) {
-        void *out = malloc((size_t)sz);
-        if (!out) { *datasize = 0; return NULL; }
-        memcpy(out, q, (size_t)sz);
-        *datasize = (int64_t)sz;
-        return out;
-      }
-      hits++;
-    }
-    q += sz;
-  }
-  return NULL;
+  if (!p || p->writing) return NULL;
+  return cafio_find_chunk(p->wrap, p->wrap_size, id, chunk_it, datasize);
 }
 
 /* ---------- sample I/O ---------- */

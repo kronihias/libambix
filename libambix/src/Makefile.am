@@ -59,20 +59,9 @@ libambix_la_SOURCES = libambix.c \
 	utils.c \
 	uuid_chunk.c \
   marker_region_chunk.c \
+	caf_io.c caf_io.h \
+	caf.c \
 	private.h
-
-if HAVE_SNDFILE
-libambix_la_SOURCES += sndfile.c
-libambix_la_CFLAGS += @SNDFILE_CFLAGS@
-libambix_la_LIBADD += @SNDFILE_LIBS@
-else !HAVE_SNDFILE
-if HAVE_FRAMEWORK_AUDIOTOOLBOX
-libambix_la_SOURCES += coreaudio.m
-libambix_la_LIBADD += @IEM_FRAMEWORK_AUDIOTOOLBOX@ @IEM_FRAMEWORK_FOUNDATION@
-else !HAVE_FRAMEWORK_AUDIOTOOLBOX
-libambix_la_SOURCES += null.c
-endif !HAVE_FRAMEWORK_AUDIOTOOLBOX
-endif !HAVE_SNDFILE
 
 if HAVE_WAVPACK
 libambix_la_SOURCES += wavpack.c

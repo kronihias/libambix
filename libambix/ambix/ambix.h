@@ -135,7 +135,7 @@ typedef enum {
 typedef enum {
   /** unknown / no container associated (e.g. handle not opened) */
   AMBIX_CONTAINER_NONE    = 0,
-  /** Apple Core Audio Format (uncompressed), via libsndfile */
+  /** Apple Core Audio Format (uncompressed) */
   AMBIX_CONTAINER_CAF     = 1,
   /** WavPack lossless-compressed container */
   AMBIX_CONTAINER_WAVPACK = 2
@@ -440,15 +440,12 @@ int64_t ambix_writef_float64 (ambix_t *ambix, const float64_t *ambidata, const f
 
 /** @brief Get the libsndfile handle associated with the ambix handle
  *
- * If possible, require an SNDFILE handle; if the ambix handle is
- * not associated with SNDFILE (e.g. because libambix is compiled without
- * libsndfile support), NULL is returned.
- * If you need this, you probably should include <sndfile.h> before
- * including <ambix/ambix.h>
+ * @deprecated libambix no longer wraps libsndfile. This function is retained
+ * for ABI compatibility and always returns NULL.
  *
  * @param ambix The handle to an ambix file
  *
- * @return A libsndfile handle or NULL
+ * @return Always NULL.
  *
  * @ingroup ambix
  */

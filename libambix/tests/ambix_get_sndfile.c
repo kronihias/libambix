@@ -4,7 +4,7 @@
 int main()
 {
   ambix_t*ambix = NULL;
-  struct SNDFILE_tag *sndfile = NULL;
+  void *sndfile = NULL;
   ambix_info_t *info= calloc(1, sizeof(ambix_info_t));
 
   ambix=ambix_open(AMBIXTEST_FILE1, AMBIX_READ, info);
@@ -12,13 +12,10 @@ int main()
   fail_if(NULL==ambix, __LINE__, "File was not open");
   sndfile = ambix_get_sndfile (ambix);
 
-#ifdef HAVE_SNDFILE
-#warning LATER: skip, once we have multiple (working) backends
-  /* there is no need to use libsndfile even if libsndfile is present */
-  fail_if(NULL==sndfile, __LINE__, "no sndfile handle despite using libsndfile");
-#else
-  fail_if(NULL!=sndfile, __LINE__, "got sndfile handle without libsndfile!");
-#endif
+  /* libambix no longer wraps libsndfile — ambix_get_sndfile() must
+   * always return NULL (kept as ABI-stable stub). */
+  fail_if(NULL!=sndfile, __LINE__,
+          "ambix_get_sndfile() must return NULL since libambix dropped libsndfile");
 
   ambix_close (ambix);
   free(info);
