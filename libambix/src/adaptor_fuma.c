@@ -54,11 +54,14 @@ fuma2ambix_weightorder(void) {
     8, 6, 4, 5, 7,
     15, 13, 11,  9, 10, 12, 14,
   };
+  /* No Condon-Shortley phase: the ambiX paper (sec. 1.4) records that the
+   * Ambisonics community agreed not to use it, and its B-format conversion
+   * matrix (sec. 4.2.1) is all-positive. */
   float32_t weights[]={
     sqrt2,
-    -1, 1, -1,
-    sqrt3_4, -sqrt3_4, 1, -sqrt3_4, sqrt3_4,
-    -sqrt5_8, sqrt5_9, -sqrt32_45, 1, -sqrt32_45, sqrt5_9, -sqrt5_8,
+    1, 1, 1,
+    sqrt3_4, sqrt3_4, 1, sqrt3_4, sqrt3_4,
+    sqrt5_8, sqrt5_9, sqrt32_45, 1, sqrt32_45, sqrt5_9, sqrt5_8,
   };
 
   ambix_matrix_t*result_m=NULL;
@@ -66,7 +69,12 @@ fuma2ambix_weightorder(void) {
   ambix_matrix_t*order_m =NULL;
 
   weight_m=_matrix_diag  (weight_m, weights, sizeof(weights)/sizeof(*weights));
-  order_m =_matrix_router(order_m , order, sizeof(order)/sizeof(*order), 1);
+  /* order[] is indexed by ACN and holds the FuMa index feeding it, i.e.
+   * "output i takes input order[i]", which is _matrix_router()'s swap=0
+   * form. Compare AMBIX_MATRIX_SID in matrix.c, which gets this pairing
+   * right. Passing swap=1 here transposed the permutation, sending
+   * first-order X to ACN2 (Z) instead of ACN3. */
+  order_m =_matrix_router(order_m , order, sizeof(order)/sizeof(*order), 0);
 
   result_m=_ambix_matrix_multiply(weight_m, order_m, result_m);
 
@@ -90,11 +98,12 @@ ambix2fuma_weightorder(void) {
     8, 6, 4, 5, 7,
     15, 13, 11,  9, 10, 12, 14,
   };
+  /* No Condon-Shortley phase - see fuma2ambix_weightorder(). */
   float32_t weights[]={
     sqrt1_2,
-    -1, 1, -1,
-    sqrt4_3, -sqrt4_3, 1, -sqrt4_3, sqrt4_3,
-    -sqrt8_5, sqrt9_5, -sqrt45_32, 1, -sqrt45_32, sqrt9_5, -sqrt8_5,
+    1, 1, 1,
+    sqrt4_3, sqrt4_3, 1, sqrt4_3, sqrt4_3,
+    sqrt8_5, sqrt9_5, sqrt45_32, 1, sqrt45_32, sqrt9_5, sqrt8_5,
   };
 
   ambix_matrix_t*result_m=NULL;
@@ -102,7 +111,9 @@ ambix2fuma_weightorder(void) {
   ambix_matrix_t*order_m =NULL;
 
   weight_m=_matrix_diag  (weight_m, weights, sizeof(weights)/sizeof(*weights));
-  order_m =_matrix_router(order_m , order, sizeof(order)/sizeof(*order), 0);
+  /* The inverse direction, so the transpose of the forward permutation:
+   * swap=1. These two flags were the wrong way round. */
+  order_m =_matrix_router(order_m , order, sizeof(order)/sizeof(*order), 1);
 
   result_m=_ambix_matrix_multiply(order_m, weight_m, result_m);
 

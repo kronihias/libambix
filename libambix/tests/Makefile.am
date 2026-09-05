@@ -45,6 +45,9 @@ matrix_SOURCES = matrixtests.c common.c
 TESTS += matrices
 matrices_SOURCES = matrices.c common.c
 
+TESTS += fuma2ambix
+fuma2ambix_SOURCES = fuma2ambix.c common.c
+
 TESTS += const_matrix
 const_matrix_SOURCES = const_matrix.c common.c
 
